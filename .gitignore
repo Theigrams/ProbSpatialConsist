@@ -3,3 +3,4 @@ snapshot/*
 tensorboard/*
 __pycache__/
 .vscode/
+logs/*

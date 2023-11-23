@@ -1,66 +1,92 @@
-import os
 import subprocess
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(BASE_DIR)
+from loguru import logger
+
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
 
 
 class DataDownloader:
-    def __init__(self, url, data_dir=BASE_DIR, file_name=None):
-        self.url = url
-        self.data_dir = data_dir
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
-        if file_name is None:
-            file_name = os.path.basename(self.url)
-        self.file_path = os.path.join(self.data_dir, file_name)
+    def __init__(self, urls, data_dir=BASE_DIR):
+        self.urls = urls
+        self.data_dir = Path(data_dir)
+        if not self.data_dir.exists():
+            Path.mkdir(self.data_dir)
+        self.file_names = [Path(url).name for url in self.urls]
+        self.file_paths = [self.data_dir / file_name for file_name in self.file_names]
 
     def download(self):
-        if not os.path.exists(self.file_path):
-            print(f"Downloading {self.url} to {self.file_path}")
-            subprocess.check_call(
-                ["wget", "-q", "-c", "--show-progress", self.url, "--no-check-certificate", "-O", self.file_path]
-            )
+        for url, file in zip(self.urls, self.file_paths):
+            self._download_single_url(url, file)
+
+    def _download_single_url(self, url, file):
+        if not file.exists():
+            logger.info(f"Downloading {url} to {file}")
+            try:
+                subprocess.check_call(
+                    [
+                        "wget",
+                        "-q",
+                        "-c",
+                        "--show-progress",
+                        url,
+                        "--no-check-certificate",
+                        "-O",
+                        str(file),
+                    ]
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to download {url}: {e}")
         else:
-            print(f"Data file {self.file_path} already exists.")
+            logger.info(f"Data file {file} already exists.")
 
     def unzip(self):
-        print(f"Unzipping {self.file_path}")
-        subprocess.check_call(["unzip", self.file_path, "-d", self.data_dir])
+        for file in self.file_paths:
+            self._unzip_single_file(file)
+
+    def _unzip_single_file(self, file):
+        logger.info(f"Unzipping {file}")
+        try:
+            subprocess.check_call(["unzip", str(file), "-d", str(self.data_dir)])
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to unzip {file}: {e}")
 
     def delete_zip(self):
-        os.remove(self.file_path)
-        print(f"Deleted zip file {self.file_path}")
+        for file in self.file_paths:
+            self._delete_single_zip(file)
+
+    def _delete_single_zip(self, file):
+        try:
+            file.unlink()
+            logger.info(f"Deleted zip file {file}")
+        except FileNotFoundError:
+            logger.warning(f"Zip file {file} not found.")
 
 
 # ModelNet40Downloader
 class ModelNet40Downloader(DataDownloader):
     def __init__(self, root_dir=ROOT_DIR):
-        url = "https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip"
-        data_dir = os.path.join(root_dir, "data", "modelnet40")
-        super().__init__(url, data_dir=data_dir, file_name="modelnet40.zip")
+        urls = ["https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip"]
+        data_dir = Path(root_dir) / "data" / "modelnet40"
+        super().__init__(urls, data_dir=data_dir)
 
 
 class ThreeDMatchDownloader(DataDownloader):
     def __init__(self, root_dir=ROOT_DIR):
-        url = "http://node2.chrischoy.org/data/datasets/registration/threedmatch.tgz"
-        data_dir = os.path.join(root_dir, "data", "3DMatch")
-        super().__init__(url, data_dir=data_dir, file_name="threedmatch.tgz")
+        url = ["http://node2.chrischoy.org/data/datasets/registration/threedmatch.tgz"]
+        data_dir = Path(root_dir) / "data" / "3DMatch"
+        super().__init__(url, data_dir=data_dir)
 
-    def unzip(self):
-        print(f"Unzipping {self.file_path}")
-        subprocess.check_call(
-            [
-                "tar",
-                "-xvzf",
-                self.file_path,
-                "-C",
-                self.data_dir,
-            ]
-        )
+    def _unzip_single_file(self, file):
+        logger.info(f"Unzipping {file}")
+        try:
+            subprocess.check_call(["tar", "-xvzf", str(file), "-C", str(self.data_dir)])
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to unzip {file}: {e}")
 
 
-class ThreeDMatchTestDownloader:
+class ThreeDMatchTestSceneDownloader(DataDownloader):
     def __init__(self, root_dir=ROOT_DIR):
         base_url = "http://vision.princeton.edu/projects/2016/3DMatch/downloads/scene-fragments"
         scene_list = [
@@ -81,36 +107,20 @@ class ThreeDMatchTestDownloader:
             "sun3d-mit_lab_hj-lab_hj_tea_nov_2_2012_scan1_erika",
             "sun3d-mit_lab_hj-lab_hj_tea_nov_2_2012_scan1_erika-evaluation",
         ]
-        self.urls = [f"{base_url}/{scene}.zip" for scene in scene_list]
-        data_dir = os.path.join(root_dir, "data", "3DMatch", "fragments")
-        self.scene_downloaders = [DataDownloader(url, data_dir=data_dir) for url in self.urls]
-
-    def download(self):
-        for scene_downloader in self.scene_downloaders:
-            scene_downloader.download()
-
-    def unzip(self):
-        for scene_downloader in self.scene_downloaders:
-            scene_downloader.unzip()
-
-    def delete_zip(self):
-        for scene_downloader in self.scene_downloaders:
-            scene_downloader.delete_zip()
-
-
-class TestDownloader(DataDownloader):
-    def __init__(self, root_dir=ROOT_DIR):
-        url = "http://vision.princeton.edu/projects/2016/3DMatch/downloads/scene-fragments/7-scenes-redkitchen.zip"
-        data_dir = os.path.join(root_dir, "data", "modelnet40")
-        super().__init__(url, data_dir=data_dir)
+        urls = [f"{base_url}/{scene}.zip" for scene in scene_list]
+        data_dir = Path(root_dir) / "data" / "3DMatch" / "fragments"
+        super().__init__(urls, data_dir=data_dir)
 
 
 if __name__ == "__main__":
+    logger.add("logs/data.log")
+
     ThreeDMatch = ThreeDMatchDownloader()
     ThreeDMatch.download()
     ThreeDMatch.unzip()
-    # ThreeDMatch.delete_zip()
+    ThreeDMatch.delete_zip()
 
-    ThreeDMatchTest = ThreeDMatchTestDownloader()
+    ThreeDMatchTest = ThreeDMatchTestSceneDownloader()
     ThreeDMatchTest.download()
     ThreeDMatchTest.unzip()
+    # ThreeDMatchTest.delete_zip()
