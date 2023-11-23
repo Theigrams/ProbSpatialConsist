@@ -1,0 +1,5 @@
+data/*
+snapshot/*
+tensorboard/*
+__pycache__/
+.vscode/
