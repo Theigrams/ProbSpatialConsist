@@ -8,6 +8,25 @@ ROOT_DIR = BASE_DIR.parent
 
 
 class DataDownloader:
+    """
+    A class for downloading and managing data files.
+
+    Args:
+        urls (list): A list of URLs pointing to the data files.
+        data_dir (str, optional): The directory where the data files will be stored. Defaults to BASE_DIR.
+
+    Attributes:
+        urls (list): A list of URLs pointing to the data files.
+        data_dir (Path): The directory where the data files will be stored.
+        file_names (list): A list of file names extracted from the URLs.
+        file_paths (list): A list of file paths where the data files will be saved.
+
+    Methods:
+        download(): Downloads the data files from the URLs.
+        unzip(): Unzips the downloaded data files.
+        delete_zip(): Deletes the downloaded zip files.
+    """
+
     def __init__(self, urls, data_dir=BASE_DIR):
         self.urls = urls
         self.data_dir = Path(data_dir)
@@ -17,10 +36,20 @@ class DataDownloader:
         self.file_paths = [self.data_dir / file_name for file_name in self.file_names]
 
     def download(self):
+        """
+        Downloads the data files from the URLs.
+        """
         for url, file in zip(self.urls, self.file_paths):
             self._download_single_url(url, file)
 
     def _download_single_url(self, url, file):
+        """
+        Downloads a single URL to the specified file.
+
+        Args:
+            url (str): The URL of the file to download.
+            file (Path): The path where the file will be saved.
+        """
         if not file.exists():
             logger.info(f"Downloading {url} to {file}")
             try:
@@ -42,10 +71,19 @@ class DataDownloader:
             logger.info(f"Data file {file} already exists.")
 
     def unzip(self):
+        """
+        Unzips the downloaded data files.
+        """
         for file in self.file_paths:
             self._unzip_single_file(file)
 
     def _unzip_single_file(self, file):
+        """
+        Unzips a single file.
+
+        Args:
+            file (Path): The path of the file to unzip.
+        """
         logger.info(f"Unzipping {file}")
         try:
             subprocess.check_call(["unzip", str(file), "-d", str(self.data_dir)])
@@ -53,10 +91,19 @@ class DataDownloader:
             logger.error(f"Failed to unzip {file}: {e}")
 
     def delete_zip(self):
+        """
+        Deletes the downloaded zip files.
+        """
         for file in self.file_paths:
             self._delete_single_zip(file)
 
     def _delete_single_zip(self, file):
+        """
+        Deletes a single zip file.
+
+        Args:
+            file (Path): The path of the zip file to delete.
+        """
         try:
             file.unlink()
             logger.info(f"Deleted zip file {file}")
@@ -64,7 +111,6 @@ class DataDownloader:
             logger.warning(f"Zip file {file} not found.")
 
 
-# ModelNet40Downloader
 class ModelNet40Downloader(DataDownloader):
     def __init__(self, root_dir=ROOT_DIR):
         urls = ["https://shapenet.cs.stanford.edu/media/modelnet40_normal_resampled.zip"]
@@ -118,7 +164,7 @@ if __name__ == "__main__":
     ThreeDMatch = ThreeDMatchDownloader()
     ThreeDMatch.download()
     ThreeDMatch.unzip()
-    ThreeDMatch.delete_zip()
+    # ThreeDMatch.delete_zip()
 
     ThreeDMatchTest = ThreeDMatchTestSceneDownloader()
     ThreeDMatchTest.download()
